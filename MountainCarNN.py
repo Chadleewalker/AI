@@ -19,10 +19,16 @@ TRAIN_STEPS = 1000
 #https://github.com/tensorflow/tensorflow/blob/master/tensorflow/contrib/learn/python/learn/estimators/estimator.py
 
 def my_model( features, labels, mode, params ):
-    net = tf.feature_column.input_layer(features, params['feature_columns'])
+    #net = tf.feature_column.input_layer(features, params['feature_columns'])
+    #net = tf.transpose(features)
+    net = tf.expand_dims(features, 0)
+
+    print( "net is " )
+    print( net )
 
     for units in params['hidden_units']:
         net = tf.layers.dense(net, units=units, activation=tf.nn.relu)
+
 
     # Compute logits (1 per class).
     logits = tf.layers.dense(net, params['n_classes'], activation=None)
@@ -35,7 +41,15 @@ def my_model( features, labels, mode, params ):
         }
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
 
+    print( "labels" )
+    print( labels )
+
+    print( "logits" ) 
+    print( logits )
+    #print( logits.shape() )
+
      # Compute loss
+    logits = tf.reshape( logits, [] )
     loss = tf.losses.mean_squared_error( labels, logits )
 
     if mode == tf.estimator.ModeKeys.EVAL:
@@ -50,27 +64,38 @@ def my_model( features, labels, mode, params ):
 
 
 the_new_brain = tf.estimator.Estimator(
-    model_fn=my_model
-)
+    model_fn=my_model,
+    params={
+            #'feature_columns': my_feature_columns,
+            # Two hidden layers of 10 nodes each.
+            'hidden_units': [10, 10],
+            # The model must choose between 3 classes.
+            'n_classes': 1,
+        })
+
 
 
 observations_x = [
     
 ]
-ovservations_y = [
+observations_y = [
 
 ]
 
 
 def input_function():
-    dataset = tf.data.Dataset.from_tensor_slices( (observations_x, ovservations_y) )
+    dataset = tf.data.Dataset.from_tensor_slices( (observations_x, observations_y) )
     dataset.shuffle(1000).repeat().batch(batch_size)
     return dataset
 
+have_thought = [False]
+
 def think_about_life():
-     classifier.train(
+    print( "Training!!!" )
+    the_new_brain.train(
         input_fn=input_function,
         steps=TRAIN_STEPS)
+    have_thought[0] = True
 
 
 A_DIVS=100
@@ -115,10 +140,19 @@ while True:
     
     epsilon = 1.0/((run_number+1)/1)
 
-
-    left_value  = the_new_brain.predict( ( LEFT   , obs[0], obs[1]) )
-    no_value    = the_new_brain.predict( ( NOTHING, obs[0], obs[1]) )
-    right_value = the_new_brain.predict( ( RIGHT  , obs[0], obs[1]) )
+    left_value = random.random()
+    no_value = random.random()
+    right_value = random.random()
+    try:
+        if have_thought[0]:
+            left_predictor = the_new_brain.predict( lambda: [( LEFT   , obs[0], obs[1])] )
+            #left_predictor = left_predictor()
+            left_value  = next(left_predictor)["logits"][0]
+            no_value    = next(the_new_brain.predict( lambda: [( NOTHING, obs[0], obs[1])] ))["logits"][0]
+            right_value = next(the_new_brain.predict( lambda: [( RIGHT  , obs[0], obs[1])] ))["logits"][0]
+    except ValueError as ex:
+        pass
+        #print( "problem over here: " + str( ex ) )
 
 
 
@@ -148,10 +182,19 @@ while True:
 
     #new_index = obs_to_index( obs )
 
+    #C:\\Users\\chadl\\AppData\\Local\\Temp\\tmpz3c1w4nk
+
     #thing = max(max( brain[ new_index[0], new_index[1], LEFT], brain[new_index[0], new_index[1], RIGHT] ), brain[new_index[0], new_index[1], NOTHING])
-    new_left_value  = the_new_brain.predict( ( LEFT   , obs[0], obs[1]) )
-    new_no_value    = the_new_brain.predict( ( NOTHING, obs[0], obs[1]) )
-    new_right_value = the_new_brain.predict( ( RIGHT  , obs[0], obs[1]) )
+    new_left_value = random.random()
+    new_no_value = random.random()
+    new_right_value = random.random()
+    try:
+        new_left_value  = next(the_new_brain.predict( lambda: [( LEFT   , obs[0], obs[1])] ))["logits"][0]
+        new_no_value    = next(the_new_brain.predict( lambda: [( NOTHING, obs[0], obs[1])] ))["logits"][0]
+        new_right_value = next(the_new_brain.predict( lambda: [( RIGHT  , obs[0], obs[1])] ))["logits"][0]
+    except ValueError as ex:
+        pass
+        #print( "somesing not hapey. i.e. sad potato: " + str(ex) )
 
     thing = max( new_left_value, new_no_value, new_right_value )
     
@@ -170,10 +213,19 @@ while True:
         #steps_till_crash += 1
 
 
-    existing_value = the_new_brain.predict( (picked_direction, obs[0], obs[1] ) )
+    existing_value = 0
+    try:
+        existing_value = next(the_new_brain.predict( lambda: [(picked_direction, obs[0], obs[1] )] ))["logits"][0]
+    except ValueError as bob:
+        pass
+        #print( "bob isn't happy: " + str( bob ) )
 
-    #bookmark!!!  now stuff the expirances in.
-    brain[ indexes[0], indexes[1], picked_direction ] = existing_value * .9 + target_value * .1
+    
+    next_value = existing_value * .9 + target_value * .1
+
+    observations_x.append( (picked_direction, obs[0], obs[1] ) )
+    observations_y.append( next_value )
+
     #print( "changing from " + str( existing_value ) + " closer to " + str( target_value ) + " indexing at " + str( indexes[0] ) + ", " + str( indexes[1] ) )
 
     #if existing_value * .9 + target_value * .1 > 1:
@@ -181,7 +233,7 @@ while True:
 
     #steps_final = steps_till_crash_array[-1]
 
-    if run_number % 2000 == 0:
+    if run_number % 2000 == 0 and run_number > 0:
     #if steps_final == steps_till_crash_max:
         env.render()
 
@@ -190,6 +242,11 @@ while True:
         env.reset()
         run_number += 1
         print( "now on run " + str( run_number ) )
+
+        if run_number % 200 == 0:
+            think_about_life()
+            observations_x = []
+            observations_y = []
 
     #env.render()
     

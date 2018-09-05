@@ -1,7 +1,7 @@
 import gym, math, random
 import numpy as np
-env = gym.make('CartPole-v0')
-#env = gym.make('MountainCar-v0')
+#env = gym.make('CartPole-v0')
+env = gym.make('MountainCar-v0')
 #env = gym.make('Hopper-v1')
 #env = gym.make('MsPacman-v0')
 
@@ -10,16 +10,16 @@ steps_till_crash_max = 0
 r_at__199 = 0
 i = 0
 
-A_DIVS=100
+A_DIVS=10
 B_DIVS=10
 C_DIVS=10
 D_DIVS=10
 
 
-aRange = ( -4.15, 4.15 ) #
-bRange = ( -4.15, 4.15 ) #
-cRange = ( -1.15, 1.15 ) #
-dRange = ( -1.15, 1.15 ) #
+aRange = ( -4.5, 4.5 ) #
+bRange = ( -4.5, 4.5 ) #
+cRange = ( -1.5, 1.5 ) #
+dRange = ( -1.5, 1.5 ) #
 
 brain = np.zeros( (A_DIVS,B_DIVS, C_DIVS, D_DIVS, 2 ) )
 brain += 4.5
@@ -29,7 +29,9 @@ obs = env.reset()
 LEFT = 0
 RIGHT = 1
 
-discount = .9
+discount = .99999
+
+running_average_value = 0
 
 def obs_to_index( _obs ):
     result = [ int((_obs[0]-aRange[0])/(aRange[1]-aRange[0])*A_DIVS + .5  ),
@@ -47,12 +49,10 @@ def obs_to_index( _obs ):
 steps_till_crash = 0
 run_number = 0
 
-last_done = False
-
 while True:
 
     
-    epsilon = 1.0/((run_number+1)/10000)
+    epsilon = 1.0/((run_number+1)/1)
 
     indexes = obs_to_index( obs )
 
@@ -76,7 +76,7 @@ while True:
 
     obs = results[0]
     reward = results[1]
-    done = results[2]
+    done = reward == 0 #results[2]
 
     if reward == 0:
         reward = -10000
@@ -88,7 +88,7 @@ while True:
     if steps_till_crash == 199:
         print( "I am a potato!" )
     
-    if last_done:
+    if done:
         target_value = reward
         #target_value = -10000 #-5
         #steps_till_crash_array.append(steps_till_crash)
@@ -97,7 +97,11 @@ while True:
             env.render()
             r_at__199 = run_number
             i += 1
-        print( "epsilon at : " + str( epsilon ) + " r" + str(run_number) + " stepped " + str(steps_till_crash) + " till crash obs: " + str(obs) + " Best  " + str(steps_till_crash_max) + " 199 at  " + str(r_at__199))
+
+        alpha = .99
+        running_average_value = alpha*running_average_value + (1-alpha)*steps_till_crash
+
+        print( "epsilon at : " + str( epsilon ) + " r" + str(run_number) + " stepped " + str(steps_till_crash) + " till crash or " + str( running_average_value ) )
         steps_till_crash = 0
     else:
         target_value = thing*discount + reward
@@ -117,11 +121,9 @@ while True:
         env.render()
 
         
-    if last_done:
+    if done:
         env.reset()
         run_number += 1
-
-    last_done = done and not last_done
 
     #env.render()
     
